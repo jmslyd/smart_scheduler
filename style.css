@@ -1,250 +1,218 @@
-:root {
-    --primary: #4F46E5;
-    --bg-body: #F8FAFC;
-    --surface: #FFFFFF;
-    --border: #E2E8F0;
-    --text-main: #0F172A;
-    --text-light: #64748B;
+// --- SETTINGS ---
+const START_HOUR = 5;  // 5 AM
+const END_HOUR = 23;   // 11 PM
+const PX_PER_HOUR = 80; 
+
+// --- STATE ---
+let eventsData = [];
+let editId = null;
+
+function init() {
+    const totalHours = END_HOUR - START_HOUR + 1; 
+    const totalHeight = totalHours * PX_PER_HOUR;
+    document.getElementById('calendarBody').style.height = totalHeight + 'px';
+
+    const timeCol = document.getElementById('timeColumn');
+    for (let i = 0; i < totalHours; i++) { 
+        const h = START_HOUR + i;
+        const cell = document.createElement('div');
+        cell.className = 'time-cell';
+        cell.innerHTML = formatHour(h);
+        timeCol.appendChild(cell);
+    }
+}
+
+// --- LOGIC ---
+function addEvent() {
+    const name = document.getElementById('subName').value;
+    const day = document.getElementById('subDay').value;
+    const start = document.getElementById('subStart').value;
+    const end = document.getElementById('subEnd').value;
+    const color = document.getElementById('subColor').value;
+
+    if(!name || !start || !end) return alert("Please fill in all fields.");
+    if(toDecimal(start) >= toDecimal(end)) return alert("End time must be after Start time.");
+
+    const newEvent = {
+        id: Date.now(),
+        title: name,
+        day: day,
+        start: start,
+        end: end,
+        color: color,
+        note: ""
+    };
+    eventsData.push(newEvent);
+    renderMainGrid();
+}
+
+function renderMainGrid() {
+    ['mon','tue','wed','thu','fri','sat','sun'].forEach(d => {
+        document.getElementById(`col-${d}`).innerHTML = '';
+    });
+    eventsData.forEach(evt => drawEventOnGrid(evt, 'col-'));
+}
+
+function drawEventOnGrid(evt, prefixId) {
+    const startDec = toDecimal(evt.start);
+    const endDec = toDecimal(evt.end);
+    if(startDec < START_HOUR || endDec > END_HOUR + 1) return; 
+
+    const top = (startDec - START_HOUR) * PX_PER_HOUR;
+    const height = (endDec - startDec) * PX_PER_HOUR;
+
+    const el = document.createElement('div');
+    el.className = `event-card ${evt.color}`;
+    el.style.top = top + 'px';
+    el.style.height = height + 'px';
+    if(height < 60) el.classList.add('compact');
+
+    el.innerHTML = `
+        <span class="ev-time">${formatRange(evt.start, evt.end)}</span>
+        <span class="ev-title">${evt.title}</span>
+        ${evt.note ? `<span class="ev-note">${evt.note}</span>` : ''}
+    `;
     
-    /* Grid Settings */
-    --time-col-width: 90px;
-    --hour-height: 80px;
+    if(prefixId === 'col-') {
+        el.onclick = () => openModal(evt.id);
+    }
+    
+    document.getElementById(`${prefixId}${evt.day}`).appendChild(el);
 }
 
-* { box-sizing: border-box; }
+// --- EXPORT RENDERERS ---
 
-body {
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    background-color: var(--bg-body);
-    color: var(--text-main);
-    margin: 0;
-    padding: 40px 20px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+function generateListHtmlForDays(dayKeys) {
+    const daysMap = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' };
+    let html = '';
+    let hasEvents = false;
+
+    dayKeys.forEach(dayKey => {
+        const daysEvents = eventsData.filter(e => e.day === dayKey);
+        if(daysEvents.length === 0) return; 
+
+        hasEvents = true;
+        daysEvents.sort((a,b) => toDecimal(a.start) - toDecimal(b.start));
+
+        html += `<div class="p-day-group"><div class="p-day-title">${daysMap[dayKey]}</div>`;
+        daysEvents.forEach(evt => {
+            html += `
+                <div class="p-event-row">
+                    <div class="p-time">
+                        <span class="p-time-start">${formatSimple(evt.start)}</span>
+                        <span class="p-time-end">${formatSimple(evt.end)}</span>
+                    </div>
+                    <div class="p-card ${evt.color}">
+                        <h4>${evt.title}</h4>
+                        ${evt.note ? `<span>📍 ${evt.note}</span>` : ''}
+                    </div>
+                </div>
+            `;
+        });
+        html += `</div>`;
+    });
+    return { html, hasEvents };
 }
 
-/* CONTROLS */
-.controls {
-    background: var(--surface);
-    padding: 24px;
-    border-radius: 16px;
-    box-shadow: 0 4px 10px -2px rgba(0, 0, 0, 0.05);
-    width: 100%;
-    max-width: 1250px;
-    display: flex;
-    gap: 15px;
-    align-items: flex-end;
-    margin-bottom: 30px;
-    border: 1px solid var(--border);
-    flex-wrap: wrap;
-    position: sticky;
-    top: 20px;
-    z-index: 1000;
+function renderLandscapeHTML() {
+    const container = document.getElementById('landscape-capture-area');
+    const leftDays = ['mon', 'tue', 'wed'];
+    const rightDays = ['thu', 'fri', 'sat', 'sun'];
+
+    const leftContent = generateListHtmlForDays(leftDays);
+    const rightContent = generateListHtmlForDays(rightDays);
+
+    let html = `
+        <div class="export-header">
+            <h2>Weekly Schedule</h2>
+            <p>Generated by Smart Scheduler</p>
+        </div>
+        <div class="export-two-col">
+            <div class="export-col">
+                ${leftContent.hasEvents ? leftContent.html : '<p style="color:#999; font-style:italic;">No classes early week.</p>'}
+            </div>
+            <div class="export-col">
+                ${rightContent.hasEvents ? rightContent.html : '<p style="color:#999; font-style:italic;">No classes late week.</p>'}
+            </div>
+        </div>
+    `;
+    container.innerHTML = html;
 }
 
-.input-group {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    flex: 1;
-    min-width: 130px;
+function renderPortraitHTML() {
+    const container = document.getElementById('portrait-capture-area');
+    const allDays = ['mon','tue','wed','thu','fri','sat','sun'];
+    const content = generateListHtmlForDays(allDays);
+
+    let html = `
+        <div class="export-header">
+            <h2>Weekly Schedule</h2>
+            <p>Generated by Smart Scheduler</p>
+        </div>
+        ${content.hasEvents ? content.html : '<p style="text-align:center; color:#999;">No classes scheduled.</p>'}
+    `;
+    container.innerHTML = html;
 }
 
-label {
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: var(--text-light);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+// --- DOWNLOADS ---
+function downloadLandscape() {
+    renderLandscapeHTML(); 
+    const target = document.getElementById('landscape-capture-area');
+    html2canvas(target, { backgroundColor: "#ffffff", scale: 2 }).then(canvas => {
+        downloadCanvas(canvas, 'Schedule_Laptop.png');
+    });
 }
 
-input, select {
-    padding: 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    font-size: 0.95rem;
-    background: #F8FAFC;
-    font-family: inherit;
-    outline: none;
-    transition: 0.2s;
-}
-input:focus, select:focus {
-    border-color: var(--primary);
-    background: #fff;
-    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+function downloadPortrait() {
+    renderPortraitHTML(); 
+    const target = document.getElementById('portrait-capture-area');
+    html2canvas(target, { backgroundColor: "#ffffff", scale: 2 }).then(canvas => {
+        downloadCanvas(canvas, 'Schedule_Phone.png');
+    });
 }
 
-/* BUTTONS */
-.btn-group { display: flex; gap: 10px; }
-
-button {
-    padding: 0 20px;
-    height: 45px;
-    border: none;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: transform 0.1s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-}
-button:active { transform: scale(0.98); }
-
-.btn-add { background: var(--primary); color: white; flex: 1; min-width: 100px; }
-.btn-landscape { background: #0EA5E9; color: white; }
-.btn-portrait  { background: #8B5CF6; color: white; }
-.btn-rst { background: white; color: #EF4444; border: 1px solid #FECACA; }
-
-/* GRID STYLES */
-.cal-header {
-    display: grid;
-    grid-template-columns: var(--time-col-width) repeat(7, 1fr);
-    border-bottom: 1px solid var(--border);
-    background: #fff;
-}
-.header-cell {
-    padding: 20px 0;
-    text-align: center;
-    font-weight: 800;
-    font-size: 0.85rem;
-    color: var(--text-light);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    border-right: 1px solid var(--border);
-}
-.header-cell:last-child { border-right: none; }
-
-.cal-body {
-    display: grid;
-    grid-template-columns: var(--time-col-width) repeat(7, 1fr);
-    position: relative;
-    background-color: #fff;
+function downloadCanvas(canvas, filename) {
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = canvas.toDataURL();
+    link.click();
 }
 
-.time-col { border-right: 1px solid var(--border); background: #FAFAFA; display: flex; flex-direction: column; }
-.time-cell {
-    height: var(--hour-height); display: flex; align-items: center; justify-content: center;
-    border-bottom: 1px solid var(--border); font-size: 0.8rem; font-weight: 700; color: var(--text-light);
-    background-color: #FAFAFA;
-}
-.time-cell:last-child { border-bottom: none; }
-
-.day-col {
-    position: relative; border-right: 1px solid var(--border); background-color: #ffffff;
-    background-image: linear-gradient(to bottom, transparent 79px, var(--border) 79px);
-    background-size: 100% var(--hour-height);
-}
-.day-col:last-child { border-right: none; }
-
-/* MAIN SCREEN WRAPPER */
-.calendar-wrapper {
-    background: var(--surface);
-    width: 100%;
-    max-width: 1250px;
-    border-radius: 16px;
-    box-shadow: 0 10px 20px -5px rgba(0,0,0,0.05);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    position: relative;
-    margin-bottom: 50px;
-    border: 1px solid var(--border);
+// --- HELPERS ---
+function toDecimal(t) { let [h, m] = t.split(':').map(Number); return h + (m/60); }
+function formatHour(h) { if(h===24) return "12 AM"; const ap = h>=12?"PM":"AM"; return `${h%12||12} ${ap}`; }
+function formatSimple(t) { let [h, m] = t.split(':'); return `${parseInt(h)%12||12}:${m}`; }
+function formatRange(s, e) {
+    const f = t => { let [h, m] = t.split(':'); return `${parseInt(h)%12||12}:${m}`; };
+    return `${f(s)} - ${f(e)}`;
 }
 
-/* EVENT CARDS */
-.event-card {
-    position: absolute; left: 5px; right: 5px; border-radius: 6px; padding: 8px 10px;
-    color: white; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-    border-left: 5px solid rgba(0,0,0,0.15); transition: transform 0.1s;
-    display: flex; flex-direction: column; overflow: hidden; z-index: 10;
+function openModal(id) {
+    editId = id;
+    const evt = eventsData.find(e => e.id === id);
+    document.getElementById('editTitle').value = evt.title;
+    document.getElementById('editNote').value = evt.note;
+    document.getElementById('editModal').style.display = 'flex';
 }
-.event-card:hover { transform: scale(1.02); z-index: 50; }
-.ev-title { font-weight: 700; font-size: 0.85rem; line-height: 1.2; }
-.ev-time { font-size: 0.75rem; opacity: 0.95; margin-bottom: 2px; }
-.ev-note { font-size: 0.75rem; font-style: italic; opacity: 0.9; margin-top: 4px; }
-.event-card.compact { justify-content: center; padding: 0 4px; }
-.event-card.compact .ev-title { text-align: center; white-space: nowrap; font-size: 0.75rem; }
-.event-card.compact .ev-time, .event-card.compact .ev-note { display: none; }
-
-
-/* --- EXPORT STYLES (Hidden) --- */
-
-/* 1. Phone List Export */
-#portrait-capture-area {
-    position: absolute; left: -9999px; top: 0; width: 420px; 
-    background: white; padding: 25px; font-family: 'Plus Jakarta Sans', sans-serif;
+function closeModal() { document.getElementById('editModal').style.display = 'none'; editId = null; }
+function saveEdit() {
+    const evt = eventsData.find(e => e.id === editId);
+    if(evt) {
+        evt.title = document.getElementById('editTitle').value;
+        evt.note = document.getElementById('editNote').value;
+        renderMainGrid();
+    }
+    closeModal();
 }
-
-/* 2. Laptop List Export */
-#landscape-capture-area {
-    position: absolute; left: -9999px; top: 0; 
-    width: 1400px; 
-    background: white; padding: 50px; font-family: 'Plus Jakarta Sans', sans-serif;
+function deleteEvent() {
+    if(confirm("Delete this?")) {
+        eventsData = eventsData.filter(e => e.id !== editId);
+        renderMainGrid();
+    }
+    closeModal();
+}
+function resetAll() {
+    if(confirm("Clear all?")) { eventsData = []; renderMainGrid(); }
 }
 
-.export-two-col { display: flex; gap: 40px; align-items: flex-start; }
-.export-col { flex: 1; }
-
-/* Export Header */
-.export-header { text-align: center; margin-bottom: 25px; border-bottom: 2px solid #eee; padding-bottom: 15px; }
-.export-header h2 { margin: 0; color: #0F172A; font-size: 2rem; letter-spacing: -1px; }
-.export-header p { margin: 5px 0 0; color: #64748B; font-size: 0.95rem; }
-
-/* Phone/List Card Styles - FIXED ALIGNMENT */
-.p-day-group { margin-bottom: 15px; }
-
-.p-day-title { 
-    font-size: 0.85rem; font-weight: 800; color: #64748B; 
-    text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; 
-    border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; 
-}
-
-/* Flex Container for the Row */
-.p-event-row { 
-    display: flex; 
-    gap: 15px; /* Consistent gap */
-    margin-bottom: 10px; 
-    align-items: flex-start; /* CRITICAL: Aligns time to TOP of card */
-}
-
-/* Time Column - LOCKED WIDTH */
-.p-time { 
-    width: 75px;        /* Fixed Width */
-    min-width: 75px;    /* Force it to stay 75px */
-    flex-shrink: 0;     /* CRITICAL: Never let it shrink */
-    text-align: right; 
-    color: #0F172A; 
-    padding-top: 6px;   /* Align text with card title visually */
-    display: flex; 
-    flex-direction: column; 
-    align-items: flex-end; 
-}
-
-.p-time-start { font-size: 0.95rem; font-weight: 700; line-height: 1; }
-.p-time-end { font-size: 0.75rem; color: #94A3B8; font-weight: 500; margin-top: 2px; }
-
-/* The Card Itself */
-.p-card { 
-    flex: 1; /* Grow to fill space */
-    border-radius: 8px; padding: 10px 14px; color: white;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-left: 4px solid rgba(0,0,0,0.2); 
-}
-.p-card h4 { margin: 0; font-size: 1rem; line-height: 1.2; }
-.p-card span { font-size: 0.8rem; opacity: 0.9; display: block; margin-top: 2px; }
-
-/* Themes */
-.bg-blue   { background: #3B82F6; }
-.bg-green  { background: #10B981; }
-.bg-orange { background: #F59E0B; }
-.bg-purple { background: #8B5CF6; }
-.bg-red    { background: #EF4444; }
-.bg-dark   { background: #475569; }
-
-/* Modal */
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); display: none; justify-content: center; align-items: center; z-index: 2000; backdrop-filter: blur(2px); }
-.modal-box { background: white; padding: 30px; border-radius: 16px; width: 340px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
-.modal-actions { display: flex; gap: 12px; margin-top: 20px; }
-.modal-actions button { flex: 1; }
+init();
