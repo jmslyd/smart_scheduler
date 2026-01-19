@@ -1,218 +1,173 @@
-// --- SETTINGS ---
-const START_HOUR = 5;  // 5 AM
-const END_HOUR = 23;   // 11 PM
-const PX_PER_HOUR = 80; 
-
-// --- STATE ---
-let eventsData = [];
-let editId = null;
-
-function init() {
-    const totalHours = END_HOUR - START_HOUR + 1; 
-    const totalHeight = totalHours * PX_PER_HOUR;
-    document.getElementById('calendarBody').style.height = totalHeight + 'px';
-
-    const timeCol = document.getElementById('timeColumn');
-    for (let i = 0; i < totalHours; i++) { 
-        const h = START_HOUR + i;
-        const cell = document.createElement('div');
-        cell.className = 'time-cell';
-        cell.innerHTML = formatHour(h);
-        timeCol.appendChild(cell);
-    }
-}
-
-// --- LOGIC ---
-function addEvent() {
-    const name = document.getElementById('subName').value;
-    const day = document.getElementById('subDay').value;
-    const start = document.getElementById('subStart').value;
-    const end = document.getElementById('subEnd').value;
-    const color = document.getElementById('subColor').value;
-
-    if(!name || !start || !end) return alert("Please fill in all fields.");
-    if(toDecimal(start) >= toDecimal(end)) return alert("End time must be after Start time.");
-
-    const newEvent = {
-        id: Date.now(),
-        title: name,
-        day: day,
-        start: start,
-        end: end,
-        color: color,
-        note: ""
-    };
-    eventsData.push(newEvent);
-    renderMainGrid();
-}
-
-function renderMainGrid() {
-    ['mon','tue','wed','thu','fri','sat','sun'].forEach(d => {
-        document.getElementById(`col-${d}`).innerHTML = '';
-    });
-    eventsData.forEach(evt => drawEventOnGrid(evt, 'col-'));
-}
-
-function drawEventOnGrid(evt, prefixId) {
-    const startDec = toDecimal(evt.start);
-    const endDec = toDecimal(evt.end);
-    if(startDec < START_HOUR || endDec > END_HOUR + 1) return; 
-
-    const top = (startDec - START_HOUR) * PX_PER_HOUR;
-    const height = (endDec - startDec) * PX_PER_HOUR;
-
-    const el = document.createElement('div');
-    el.className = `event-card ${evt.color}`;
-    el.style.top = top + 'px';
-    el.style.height = height + 'px';
-    if(height < 60) el.classList.add('compact');
-
-    el.innerHTML = `
-        <span class="ev-time">${formatRange(evt.start, evt.end)}</span>
-        <span class="ev-title">${evt.title}</span>
-        ${evt.note ? `<span class="ev-note">${evt.note}</span>` : ''}
-    `;
+:root {
+    --primary: #4F46E5;
+    --bg-body: #F8FAFC;
+    --surface: #FFFFFF;
+    --border: #E2E8F0;
+    --text-main: #0F172A;
+    --text-light: #64748B;
     
-    if(prefixId === 'col-') {
-        el.onclick = () => openModal(evt.id);
+    /* Grid Settings */
+    --time-col-width: 80px;
+    --hour-height: 80px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background-color: var(--bg-body);
+    color: var(--text-main);
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* CONTROLS */
+.controls {
+    background: var(--surface);
+    padding: 24px;
+    border-radius: 16px;
+    box-shadow: 0 4px 10px -2px rgba(0, 0, 0, 0.05);
+    width: 100%;
+    max-width: 1250px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border);
+}
+
+/* Desktop Input Layout */
+.input-row { display: flex; gap: 15px; margin-bottom: 15px; width: 100%; }
+.input-group { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+
+label { font-size: 0.75rem; font-weight: 700; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; }
+
+input, select {
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    background: #F8FAFC;
+    font-family: inherit;
+    outline: none;
+    width: 100%;
+}
+input:focus, select:focus { border-color: var(--primary); background: #fff; }
+
+/* BUTTONS */
+button {
+    padding: 0 20px;
+    height: 48px; /* Standard height */
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.95rem;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.1s;
+}
+button:active { transform: scale(0.98); }
+
+/* Desktop Button Layout */
+.btn-add { background: var(--primary); color: white; width: 100%; margin-bottom: 10px; }
+.btn-group { display: flex; gap: 10px; margin-bottom: 10px; }
+.btn-landscape { background: #0EA5E9; color: white; flex: 1; }
+.btn-portrait  { background: #8B5CF6; color: white; flex: 1; }
+.btn-rst { background: white; color: #EF4444; border: 1px solid #FECACA; width: 100%; }
+
+/* MAIN CALENDAR */
+.calendar-wrapper {
+    background: var(--surface);
+    width: 100%;
+    max-width: 1250px;
+    border-radius: 16px;
+    box-shadow: 0 10px 20px -5px rgba(0,0,0,0.05);
+    border: 1px solid var(--border);
+    overflow: hidden; 
+    margin-bottom: 50px;
+    position: relative;
+}
+
+/* Scroll Container */
+.cal-scroll-container { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.scroll-instruction { display: none; text-align: center; font-size: 0.8rem; color: #94A3B8; padding: 10px; background: #f8fafc; border-bottom: 1px solid #eee; }
+
+/* Grid System */
+.cal-header, .cal-body { display: grid; grid-template-columns: var(--time-col-width) repeat(7, 1fr); min-width: 800px; }
+.cal-header { border-bottom: 1px solid var(--border); background: #fff; }
+.header-cell { padding: 15px 0; text-align: center; font-weight: 800; font-size: 0.85rem; color: var(--text-light); text-transform: uppercase; border-right: 1px solid var(--border); }
+.header-cell:last-child { border-right: none; }
+.cal-body { background-color: #fff; position: relative; }
+
+.time-col { border-right: 1px solid var(--border); background: #FAFAFA; }
+.time-cell { height: var(--hour-height); display: flex; align-items: center; justify-content: center; border-bottom: 1px solid var(--border); font-size: 0.8rem; font-weight: 700; color: var(--text-light); }
+.time-cell:last-child { border-bottom: none; }
+
+.day-col { position: relative; border-right: 1px solid var(--border); background-color: #ffffff; background-image: linear-gradient(to bottom, transparent 79px, var(--border) 79px); background-size: 100% var(--hour-height); }
+.day-col:last-child { border-right: none; }
+
+/* EVENTS */
+.event-card { position: absolute; left: 3px; right: 3px; border-radius: 6px; padding: 6px 8px; color: white; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-left: 4px solid rgba(0,0,0,0.15); z-index: 10; display: flex; flex-direction: column; overflow: hidden; }
+.ev-title { font-weight: 700; font-size: 0.8rem; line-height: 1.2; }
+.ev-time { font-size: 0.7rem; opacity: 0.95; margin-bottom: 2px; }
+.ev-note { font-size: 0.7rem; font-style: italic; opacity: 0.9; margin-top: 2px; }
+.event-card.compact .ev-time, .event-card.compact .ev-note { display: none; }
+.event-card.compact .ev-title { text-align: center; white-space: nowrap; font-size: 0.7rem; }
+
+/* EXPORT STYLES */
+#portrait-capture-area { position: absolute; left: -9999px; top: 0; width: 420px; background: white; padding: 25px; font-family: 'Plus Jakarta Sans', sans-serif; }
+#landscape-capture-area { position: absolute; left: -9999px; top: 0; width: 1400px; background: white; padding: 50px; font-family: 'Plus Jakarta Sans', sans-serif; }
+
+.export-two-col { display: flex; gap: 40px; align-items: flex-start; }
+.export-col { flex: 1; }
+.export-header { text-align: center; margin-bottom: 25px; border-bottom: 2px solid #eee; padding-bottom: 15px; }
+.export-header h2 { margin: 0; color: #0F172A; font-size: 2rem; }
+.export-header p { margin: 5px 0 0; color: #64748B; font-size: 0.95rem; }
+
+/* List Styles - FIXED ALIGNMENT */
+.p-day-group { margin-bottom: 15px; }
+.p-day-title { font-size: 0.85rem; font-weight: 800; color: #64748B; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; }
+.p-event-row { display: flex; gap: 12px; margin-bottom: 8px; align-items: flex-start; }
+.p-time { width: 75px; min-width: 75px; flex-shrink: 0; text-align: right; color: #0F172A; padding-top: 6px; display: flex; flex-direction: column; align-items: flex-end; }
+.p-time-start { font-size: 0.95rem; font-weight: 700; line-height: 1; }
+.p-time-end { font-size: 0.75rem; color: #94A3B8; font-weight: 500; margin-top: 2px; }
+.p-card { flex: 1; border-radius: 8px; padding: 10px 14px; color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-left: 4px solid rgba(0,0,0,0.2); }
+.p-card h4 { margin: 0; font-size: 1rem; line-height: 1.2; }
+.p-card span { font-size: 0.8rem; opacity: 0.9; display: block; margin-top: 2px; }
+
+.bg-blue { background: #3B82F6; } .bg-green { background: #10B981; } .bg-orange { background: #F59E0B; }
+.bg-purple { background: #8B5CF6; } .bg-red { background: #EF4444; } .bg-dark { background: #475569; }
+
+/* Modal */
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); display: none; justify-content: center; align-items: center; z-index: 2000; backdrop-filter: blur(2px); }
+.modal-box { background: white; padding: 25px; border-radius: 16px; width: 90%; max-width: 340px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
+.modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+.modal-actions button { flex: 1; }
+
+/* --- MOBILE RESPONSIVENESS FIX --- */
+@media (max-width: 768px) {
+    body { padding: 15px; }
+    .controls { padding: 20px; }
+    
+    .input-row { flex-direction: column; gap: 10px; margin-bottom: 10px; }
+    
+    /* Better Button Grid */
+    .btn-add { height: 55px; font-size: 1rem; }
+    
+    .btn-group { display: flex; gap: 10px; width: 100%; }
+    .btn-landscape, .btn-portrait { 
+        height: 50px; 
+        font-size: 0.9rem; 
+        flex: 1; 
     }
     
-    document.getElementById(`${prefixId}${evt.day}`).appendChild(el);
-}
-
-// --- EXPORT RENDERERS ---
-
-function generateListHtmlForDays(dayKeys) {
-    const daysMap = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' };
-    let html = '';
-    let hasEvents = false;
-
-    dayKeys.forEach(dayKey => {
-        const daysEvents = eventsData.filter(e => e.day === dayKey);
-        if(daysEvents.length === 0) return; 
-
-        hasEvents = true;
-        daysEvents.sort((a,b) => toDecimal(a.start) - toDecimal(b.start));
-
-        html += `<div class="p-day-group"><div class="p-day-title">${daysMap[dayKey]}</div>`;
-        daysEvents.forEach(evt => {
-            html += `
-                <div class="p-event-row">
-                    <div class="p-time">
-                        <span class="p-time-start">${formatSimple(evt.start)}</span>
-                        <span class="p-time-end">${formatSimple(evt.end)}</span>
-                    </div>
-                    <div class="p-card ${evt.color}">
-                        <h4>${evt.title}</h4>
-                        ${evt.note ? `<span>📍 ${evt.note}</span>` : ''}
-                    </div>
-                </div>
-            `;
-        });
-        html += `</div>`;
-    });
-    return { html, hasEvents };
-}
-
-function renderLandscapeHTML() {
-    const container = document.getElementById('landscape-capture-area');
-    const leftDays = ['mon', 'tue', 'wed'];
-    const rightDays = ['thu', 'fri', 'sat', 'sun'];
-
-    const leftContent = generateListHtmlForDays(leftDays);
-    const rightContent = generateListHtmlForDays(rightDays);
-
-    let html = `
-        <div class="export-header">
-            <h2>Weekly Schedule</h2>
-            <p>Generated by Smart Scheduler</p>
-        </div>
-        <div class="export-two-col">
-            <div class="export-col">
-                ${leftContent.hasEvents ? leftContent.html : '<p style="color:#999; font-style:italic;">No classes early week.</p>'}
-            </div>
-            <div class="export-col">
-                ${rightContent.hasEvents ? rightContent.html : '<p style="color:#999; font-style:italic;">No classes late week.</p>'}
-            </div>
-        </div>
-    `;
-    container.innerHTML = html;
-}
-
-function renderPortraitHTML() {
-    const container = document.getElementById('portrait-capture-area');
-    const allDays = ['mon','tue','wed','thu','fri','sat','sun'];
-    const content = generateListHtmlForDays(allDays);
-
-    let html = `
-        <div class="export-header">
-            <h2>Weekly Schedule</h2>
-            <p>Generated by Smart Scheduler</p>
-        </div>
-        ${content.hasEvents ? content.html : '<p style="text-align:center; color:#999;">No classes scheduled.</p>'}
-    `;
-    container.innerHTML = html;
-}
-
-// --- DOWNLOADS ---
-function downloadLandscape() {
-    renderLandscapeHTML(); 
-    const target = document.getElementById('landscape-capture-area');
-    html2canvas(target, { backgroundColor: "#ffffff", scale: 2 }).then(canvas => {
-        downloadCanvas(canvas, 'Schedule_Laptop.png');
-    });
-}
-
-function downloadPortrait() {
-    renderPortraitHTML(); 
-    const target = document.getElementById('portrait-capture-area');
-    html2canvas(target, { backgroundColor: "#ffffff", scale: 2 }).then(canvas => {
-        downloadCanvas(canvas, 'Schedule_Phone.png');
-    });
-}
-
-function downloadCanvas(canvas, filename) {
-    const link = document.createElement('a');
-    link.download = filename;
-    link.href = canvas.toDataURL();
-    link.click();
-}
-
-// --- HELPERS ---
-function toDecimal(t) { let [h, m] = t.split(':').map(Number); return h + (m/60); }
-function formatHour(h) { if(h===24) return "12 AM"; const ap = h>=12?"PM":"AM"; return `${h%12||12} ${ap}`; }
-function formatSimple(t) { let [h, m] = t.split(':'); return `${parseInt(h)%12||12}:${m}`; }
-function formatRange(s, e) {
-    const f = t => { let [h, m] = t.split(':'); return `${parseInt(h)%12||12}:${m}`; };
-    return `${f(s)} - ${f(e)}`;
-}
-
-function openModal(id) {
-    editId = id;
-    const evt = eventsData.find(e => e.id === id);
-    document.getElementById('editTitle').value = evt.title;
-    document.getElementById('editNote').value = evt.note;
-    document.getElementById('editModal').style.display = 'flex';
-}
-function closeModal() { document.getElementById('editModal').style.display = 'none'; editId = null; }
-function saveEdit() {
-    const evt = eventsData.find(e => e.id === editId);
-    if(evt) {
-        evt.title = document.getElementById('editTitle').value;
-        evt.note = document.getElementById('editNote').value;
-        renderMainGrid();
+    .btn-rst { 
+        margin-top: 5px; 
+        height: 50px; 
+        color: #EF4444; 
+        border-color: #FECACA;
     }
-    closeModal();
-}
-function deleteEvent() {
-    if(confirm("Delete this?")) {
-        eventsData = eventsData.filter(e => e.id !== editId);
-        renderMainGrid();
-    }
-    closeModal();
-}
-function resetAll() {
-    if(confirm("Clear all?")) { eventsData = []; renderMainGrid(); }
-}
 
-init();
+    .scroll-instruction { display: block; }
+    .modal-box { width: 90%; padding: 20px; }
+}
