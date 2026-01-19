@@ -80,7 +80,8 @@ function drawEventOnGrid(evt, prefixId) {
     document.getElementById(`${prefixId}${evt.day}`).appendChild(el);
 }
 
-// --- GENERATE LIST HTML (Fix: Stacked Times) ---
+// --- EXPORT RENDERERS ---
+
 function generateListHtmlForDays(dayKeys) {
     const daysMap = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' };
     let html = '';
@@ -110,11 +111,9 @@ function generateListHtmlForDays(dayKeys) {
         });
         html += `</div>`;
     });
-    
     return { html, hasEvents };
 }
 
-// --- RENDER EXPORTS ---
 function renderLandscapeHTML() {
     const container = document.getElementById('landscape-capture-area');
     const leftDays = ['mon', 'tue', 'wed'];
