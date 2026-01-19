@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Schedule</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="controls" data-html2canvas-ignore="true">
+        <div class="input-group">
+            <label>Subject</label>
+            <input type="text" id="subName" placeholder="e.g. Science">
+        </div>
+        <div class="input-group">
+            <label>Day</label>
+            <select id="subDay">
+                <option value="mon">Monday</option>
+                <option value="tue">Tuesday</option>
+                <option value="wed">Wednesday</option>
+                <option value="thu">Thursday</option>
+                <option value="fri">Friday</option>
+                <option value="sat">Saturday</option>
+                <option value="sun">Sunday</option>
+            </select>
+        </div>
+        <div class="input-group">
+            <label>Start</label>
+            <input type="time" id="subStart">
+        </div>
+        <div class="input-group">
+            <label>End</label>
+            <input type="time" id="subEnd">
+        </div>
+        <div class="input-group">
+            <label>Theme</label>
+            <select id="subColor">
+                <option value="bg-blue">Blue</option>
+                <option value="bg-green">Green</option>
+                <option value="bg-orange">Orange</option>
+                <option value="bg-purple">Purple</option>
+                <option value="bg-red">Red</option>
+                <option value="bg-dark">Dark</option>
+            </select>
+        </div>
+        
+        <button class="btn-add" onclick="addEvent()">+ Add Class</button>
+        
+        <div class="btn-group">
+            <button class="btn-landscape" onclick="downloadLandscape()">💻 Laptop</button>
+            <button class="btn-portrait" onclick="downloadPortrait()">📱 Phone</button>
+            <button class="btn-rst" onclick="resetAll()">✖</button>
+        </div>
+    </div>
+
+    <div class="calendar-wrapper">
+        <div class="cal-header">
+            <div class="header-cell">Time</div>
+            <div class="header-cell">Mon</div>
+            <div class="header-cell">Tue</div>
+            <div class="header-cell">Wed</div>
+            <div class="header-cell">Thu</div>
+            <div class="header-cell">Fri</div>
+            <div class="header-cell">Sat</div>
+            <div class="header-cell">Sun</div>
+        </div>
+        <div class="cal-body" id="calendarBody">
+            <div class="time-col" id="timeColumn"></div>
+            <div class="day-col" id="col-mon"></div>
+            <div class="day-col" id="col-tue"></div>
+            <div class="day-col" id="col-wed"></div>
+            <div class="day-col" id="col-thu"></div>
+            <div class="day-col" id="col-fri"></div>
+            <div class="day-col" id="col-sat"></div>
+            <div class="day-col" id="col-sun"></div>
+        </div>
+    </div>
+
+    <div id="portrait-capture-area"></div>
+    
+    <div id="landscape-capture-area"></div>
+
+    <div class="modal-overlay" id="editModal">
+        <div class="modal-box">
+            <h3 style="margin-top:0">Edit Event</h3>
+            <div class="input-group" style="margin-bottom:12px;">
+                <label>Title</label>
+                <input type="text" id="editTitle">
+            </div>
+            <div class="input-group" style="margin-bottom:12px;">
+                <label>Note</label>
+                <input type="text" id="editNote" placeholder="e.g. Room 304">
+            </div>
+            <div class="modal-actions">
+                <button class="btn-rst" onclick="deleteEvent()">Delete</button>
+                <button class="btn-landscape" onclick="saveEdit()">Save</button>
+            </div>
+            <div style="text-align:center; margin-top:12px;">
+                <a href="#" onclick="closeModal()" style="text-decoration:none; color:#888; font-size:0.85rem">Cancel</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
